@@ -142,6 +142,12 @@ pub struct GasType {
 	/// A vector of gas-amount pairs. GasRef is just which gas, the f32 is moles made/mole burned.
 	/// Byond: `fire_products`, a list of gas IDs associated with amounts.
 	pub fire_products: Option<FireProductInfo>,
+	/// The intermolecular constant for a gas.
+	/// Byond: `imf_constant`, a number.
+	pub imf_constant: f32,
+	/// The litres taken up by a mole of gas.
+	/// Byond: `molar_volume`, a number.
+	pub molar_volume: f32,
 }
 
 impl GasType {
@@ -212,6 +218,12 @@ impl GasType {
 				.unwrap_or_default(),
 			fire_radiation_released: gas
 				.get_number(byond_string!("fire_radiation_released"))
+				.unwrap_or_default(),
+			imf_constant: gas
+				.get_number(byond_string!("imf_constant"))
+				.unwrap_or_default(),
+			molar_volume: gas
+				.get_number(byond_string!("molar_volume"))
 				.unwrap_or_default(),
 		})
 	}
@@ -355,6 +367,32 @@ pub fn gas_fusion_power(idx: &GasIDX) -> f32 {
 		.get(*idx as usize)
 		.unwrap()
 		.fusion_power
+}
+
+/// Gets the intermolecular force constant of the given gas.
+/// # Panics
+/// If gas info isn't loaded yet.
+pub fn gas_imf_constant(idx: &GasIDX) -> f32 {
+	GAS_INFO_BY_IDX
+		.read()
+		.as_ref()
+		.unwrap_or_else(|| panic!("Gases not loaded yet! Uh oh!"))
+		.get(*idx as usize)
+		.unwrap()
+		.imf_constant
+}
+
+/// Gets the molar volume of the given gas.
+/// # Panics
+/// If gas info isn't loaded yet.
+pub fn gas_molar_volume(idx: &GasIDX) -> f32 {
+	GAS_INFO_BY_IDX
+		.read()
+		.as_ref()
+		.unwrap_or_else(|| panic!("Gases not loaded yet! Uh oh!"))
+		.get(*idx as usize)
+		.unwrap()
+		.molar_volume
 }
 
 /// Returns the total number of gases in use. Only used by gas mixtures; should probably stay that way.

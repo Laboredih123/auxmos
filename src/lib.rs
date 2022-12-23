@@ -12,7 +12,7 @@ use auxtools::{byond_string, hook, inventory, runtime, List, Value};
 use auxcleanup::{datum_del, DelDatumFunc};
 
 use gas::{
-	amt_gases, constants, gas_idx_from_value, gas_idx_to_id, tot_gases, types, with_gas_info,
+	amt_gases, constants::{self, R_IDEAL_GAS_EQUATION}, gas_idx_from_value, gas_idx_to_id, tot_gases, types, with_gas_info,
 	with_mix, with_mix_mut, with_mixes, with_mixes_custom, with_mixes_mut, GasArena, Mixture,
 };
 
@@ -653,4 +653,55 @@ fn _hook_amt_gas_mixes() {
 #[hook("/datum/controller/subsystem/air/proc/get_max_gas_mixes")]
 fn _hook_max_gas_mixes() {
 	Ok(Value::from(tot_gases() as f32))
+}
+
+/// Args: (mixture, pressure, temperature, volume). Takes the args and solves for the moles needed to complete the van der waals equation
+#[hook("/datum/proc/solve_moles")]
+fn _solve_moles_hook(gas: Value, pressure_arg: Value, temperature_arg: Value, volume_arg: Value) {
+	let pressure = pressure_arg.as_number().unwrap_or_default();
+	let temperature = temperature_arg.as_number().unwrap_or_default();
+	let volume = volume_arg.as_number().unwrap_or_default();
+	const CUBE_ROOT_2: f32 = 1.25992104989;
+	const CUBE_ROOT_2_SQUARED: f32 = CUBE_ROOT_2 * CUBE_ROOT_2;
+	with_mix(gas, |mix| {
+		let (imf_constant, molar_volume) = mix.vanderwaals_constants();
+		if imf_constant * molar_volume == 0.0 {
+			return Ok(Value::from(
+				(pressure * volume) / (R_IDEAL_GAS_EQUATION * temperature)
+			))
+		}
+	// this optimisation was brought by the great maltose
+	let first: f32 =
+        imf_constant * imf_constant * volume * volume * volume *
+        (
+            2.0 * imf_constant +
+            18.0 * molar_volume * molar_volume * pressure -
+            9.0 * R_IDEAL_GAS_EQUATION * molar_volume * temperature
+        );
+
+    let second: f32 =
+        3.0 * CUBE_ROOT_2_SQUARED * imf_constant * molar_volume * volume * volume *
+        (
+            molar_volume * pressure +
+            R_IDEAL_GAS_EQUATION * temperature
+        ) -
+        imf_constant * imf_constant * volume * volume;
+
+    let third: f32 =
+        f32::cbrt(
+            first +
+            f32::sqrt(
+                first * first +
+                second * second * second
+            )
+        );
+
+    Ok(Value::from((
+        third * third +
+        volume * CUBE_ROOT_2 * imf_constant * third -
+        second
+    ) / (
+        3.0 * imf_constant * molar_volume * CUBE_ROOT_2 * third
+    )))
+	})
 }

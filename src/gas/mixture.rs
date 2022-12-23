@@ -13,7 +13,7 @@ use tinyvec::TinyVec;
 use crate::reaction::ReactionIdentifier;
 
 use super::{
-	constants::*, gas_visibility, total_num_gases, with_reactions, with_specific_heats, GasIDX,
+	constants::*, gas_visibility, total_num_gases, with_reactions, with_specific_heats, GasIDX,gas_imf_constant,gas_molar_volume
 };
 
 type SpecificFireInfo = (usize, f32, f32);
@@ -245,9 +245,28 @@ impl Mixture {
 	pub fn total_moles(&self) -> f32 {
 		self.moles.iter().sum()
 	}
+	/// The total constants of the mixture. L^2*KPA/Moles^2, L/Mols
+	pub fn vanderwaals_constants(&self) -> (f32, f32) {
+		let mut total_imf = 0.0;
+		let mut total_molvol = 0.0;
+		let total_mol = self.total_moles();
+		for (idx1, moles1) in self.enumerate() {
+			for (idx2, moles2) in self.enumerate() {
+				total_imf += (moles1/total_mol)*(moles2/total_mol)*f32::sqrt(gas_imf_constant(&idx1)*gas_imf_constant(&idx2));
+				total_molvol += (moles1/total_mol)*(moles2/total_mol)*f32::sqrt(gas_molar_volume(&idx1)*gas_molar_volume(&idx2));
+			}
+		}
+		(total_imf, total_molvol)
+	}
 	/// Pressure. Kilopascals.
 	pub fn return_pressure(&self) -> f32 {
-		self.total_moles() * R_IDEAL_GAS_EQUATION * self.temperature / self.volume
+		//self.total_moles() * R_IDEAL_GAS_EQUATION * self.temperature / self.volume
+		if self.total_moles() == 0.0 {
+			return 0.0
+		}
+		let (total_imf, total_molvol) = self.vanderwaals_constants();
+		let total_mol = self.total_moles();
+		(total_mol * R_IDEAL_GAS_EQUATION * self.temperature / (self.volume - total_molvol * total_mol)) - ((total_mol.powi(2) * total_imf) / self.volume.powi(2))
 	}
 	/// Thermal energy. Joules?
 	pub fn thermal_energy(&self) -> f32 {
@@ -264,6 +283,7 @@ impl Mixture {
 		for (a, b) in self.moles.iter_mut().zip(giver.moles.iter()) {
 			*a += b;
 		}
+
 		let combined_heat_capacity = our_heat_capacity + other_heat_capacity;
 		if combined_heat_capacity > MINIMUM_HEAT_CAPACITY {
 			self.set_temperature(
