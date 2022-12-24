@@ -1,7 +1,7 @@
 use auxtools::*;
 
 use crate::gas::{
-	constants::*, gas_fusion_power, gas_idx_from_string, with_gas_info, with_mix, with_mix_mut,
+	constants::*, gas_idx_from_string, with_gas_info, with_mix, with_mix_mut,
 	FireProductInfo, GasIDX,
 };
 
